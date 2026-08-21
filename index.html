@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tamagotchi-Swipe · v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #4CA7FF;
+    --blue-strong: #047FFF;
+    --blue-tint: #EAF5FF;
+    --yellow: #FFC700;
+    --yellow-tint: #FFF6E0;
+    --yellow-dark: #954C09;
+    --coral: #FF613F;
+    --coral-tint: #FFEFEC;
+    --gray-50: #F9F9F9;
+    --gray-200: #EFEDED;
+    --gray-300: #D8D8D8;
+    --gray-500: #949494;
+    --gray-600: #666666;
+    --ink: #1A1A1A;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #EFEDED;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+  }
+
+  .phone {
+    width: min(390px, 100vw);
+    height: min(780px, 100dvh);
+    background: var(--ink);
+    border: 1px solid var(--gray-300);
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  @media (max-width: 420px) {
+    .phone { border: none; border-radius: 0; height: 100dvh; }
+  }
+
+  /* ---------- Header ---------- */
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+  }
+  .course-chip {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--blue-strong);
+    background: var(--blue-tint);
+    border: 1px solid #C0E0FF;
+    padding: 5px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .progress {
+    font-size: 13px;
+    color: var(--gray-300);
+    font-variant-numeric: tabular-nums;
+  }
+  .streak {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-300);
+    border: 1px solid rgba(255, 255, 255, .22);
+    background: rgba(255, 255, 255, .06);
+    border-radius: 999px;
+    padding: 5px 11px 5px 8px;
+    transition: color .2s, border-color .2s, background .2s;
+    font-variant-numeric: tabular-nums;
+  }
+  .streak svg { display: block; }
+  .streak.hot {
+    color: var(--yellow-dark);
+    background: var(--yellow-tint);
+    border-color: #FFEAB2;
+  }
+  .streak.pop { animation: streakPop .35s ease; }
+  @keyframes streakPop { 40% { transform: scale(1.18); } }
+
+  /* ---------- Creature viewport (v3: the tamagotchi owns the top of the screen) ---------- */
+  .stage { padding: 0 16px; }
+  .viewport {
+    position: relative;
+    height: min(368px, 48dvh);
+    border-radius: 20px;
+    overflow: hidden;
+    background:
+      radial-gradient(90% 75% at 50% 40%, rgba(76, 167, 255, .18), transparent 72%),
+      var(--ink);
+  }
+  /* the engine forces inline position:relative on the mount — size it explicitly */
+  .mount { width: 100%; height: 100%; }
+  .mount canvas { display: block; }
+
+  .load-note {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 32px;
+    font-size: 13px;
+    color: var(--gray-500);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .load-note.off { display: none; }
+
+  /* HUD over the dark panel */
+  .hud {
+    position: absolute;
+    top: 12px; left: 0; right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .hearts { display: flex; gap: 6px; padding-bottom: 7px; }
+  .heart { width: 22px; height: 22px; position: relative; }
+  .heart svg { position: absolute; inset: 0; }
+  .heart .fillpart { transition: clip-path .3s ease; }
+
+  .vitality {
+    width: 134px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .14);
+    border: 1px solid rgba(255, 255, 255, .22);
+    overflow: hidden;
+  }
+  .vitality .fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    background: var(--blue);
+  }
+  .vitality .fill.mid { background: var(--yellow); }
+  .vitality .fill.low { background: var(--coral); animation: vitPulse .8s ease-in-out infinite; }
+  @keyframes vitPulse { 50% { opacity: .45; } }
+
+  .form-tag {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, .45);
+    pointer-events: none;
+    z-index: 3;
+    transition: color .5s ease;
+  }
+  .form-tag.gold { color: var(--yellow); }
+
+  /* floating heart note */
+  .float-note {
+    position: absolute;
+    top: 64px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--coral);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .float-note.loss { color: var(--gray-300); }
+  .float-note.go { animation: floatUp 1s ease forwards; }
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translate(-50%, 6px); }
+    25% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -22px); }
+  }
+
+  /* banner (unlocks, growth, god tier) */
+  .unlock-banner {
+    position: absolute;
+    top: 56px; left: 50%;
+    transform: translate(-50%, -8px);
+    background: var(--yellow-tint);
+    border: 1px solid #FFEAB2;
+    color: var(--yellow-dark);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+  }
+  .unlock-banner.show { animation: bannerIn 2.4s ease forwards; }
+  @keyframes bannerIn {
+    0% { opacity: 0; transform: translate(-50%, -8px); }
+    12%, 82% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -8px); }
+  }
+
+  /* ---------- Lower half: cards + controls (v3: pushed down ~120px by the big viewport) ---------- */
+  .lower {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-height: 0;
+  }
+  .cardzone {
+    flex: 1;
+    position: relative;
+    padding: 14px 20px 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .stack { position: relative; flex: 1; min-height: 0; }
+
+  .card {
+    position: absolute;
+    inset: 0;
+    background: #2E2E2E;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .card.back {
+    transform: scale(.94) translateY(10px);
+    z-index: 1;
+  }
+  .card.top { z-index: 2; cursor: grab; }
+  .card.top:active { cursor: grabbing; }
+  .card.spring { transition: transform .3s ease; }
+  .card.fling { transition: transform .38s ease, opacity .38s ease; opacity: 0; }
+
+  .card .cat {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    margin-bottom: 12px;
+  }
+  .card .statement {
+    font-size: 18px;
+    line-height: 1.4;
+    font-weight: 500;
+    max-width: 280px;
+    color: var(--gray-50);
+  }
+
+  .drag-label {
+    position: absolute;
+    top: 16px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 2.5px solid;
+    opacity: 0;
+    background: #2E2E2E;
+  }
+  .drag-label.myth { left: 16px; color: var(--coral); border-color: var(--coral); transform: rotate(-8deg); }
+  .drag-label.fact { right: 16px; color: var(--blue-strong); border-color: var(--blue-strong); transform: rotate(8deg); }
+
+  .stamp {
+    position: absolute;
+    top: 50%; left: 50%;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    padding: 8px 20px;
+    border-radius: 10px;
+    border: 4px solid;
+    background: #2E2E2E;
+    z-index: 6;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .stamp.myth { color: var(--coral); border-color: var(--coral); }
+  .stamp.fact { color: var(--blue-strong); border-color: var(--blue-strong); }
+  .stamp.show { animation: stampIn .45s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+  @keyframes stampIn {
+    0% { opacity: 0; transform: translate(-50%, -50%) rotate(-14deg) scale(1.8); }
+    100% { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+  }
+
+  /* reveal floats over the stack — no reserved slot in v3 */
+  .reveal {
+    position: absolute;
+    left: 20px; right: 20px;
+    bottom: 10px;
+    display: none;
+    gap: 12px;
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 12px 14px;
+    animation: revealIn .25s ease;
+    z-index: 7;
+  }
+  .reveal.on { display: flex; }
+  @keyframes revealIn { from { opacity: 0; transform: translateY(6px); } }
+  .reveal .badge {
+    flex: none;
+    width: 28px; height: 28px;
+    border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .reveal.good .badge { background: var(--blue-tint); }
+  .reveal.bad  .badge { background: var(--coral-tint); }
+  .reveal .verdict { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .reveal.good .verdict { color: var(--blue-strong); }
+  .reveal.bad  .verdict { color: var(--coral); }
+  .reveal .why { font-size: 13px; color: var(--gray-600); line-height: 1.45; }
+  .reveal .tap { font-size: 11px; color: var(--gray-500); margin-top: 4px; }
+
+  /* ---------- Controls ---------- */
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 56px;
+    padding: 12px 0 20px;
+  }
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .ctrl .btn {
+    width: 58px; height: 58px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .12s ease;
+  }
+  .ctrl:active .btn { transform: scale(.92); }
+  .ctrl .lbl { font-size: 12px; font-weight: 500; }
+  .ctrl.myth .btn { background: rgba(255, 97, 63, .12); border: 1px solid var(--coral); }
+  .ctrl.myth .lbl { color: var(--coral); }
+  .ctrl.fact .btn { background: rgba(76, 167, 255, .12); border: 1px solid var(--blue); }
+  .ctrl.fact .lbl { color: var(--blue); }
+
+  /* ---------- Intro (session start only) ---------- */
+  .intro {
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 26, 26, .94);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 12;
+  }
+  .intro.on { display: flex; }
+  .intro-card {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    padding: 22px;
+    text-align: center;
+    animation: revealIn .3s ease;
+  }
+  .intro-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+  .intro-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .intro-pill {
+    flex: 1;
+    max-width: 130px;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 10px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .intro-pill .dir { font-size: 11px; font-weight: 500; color: var(--gray-500); }
+  .intro-pill.myth { color: var(--coral); }
+  .intro-pill.fact { color: var(--blue-strong); }
+  .intro-card .note {
+    font-size: 13px;
+    color: var(--gray-600);
+    line-height: 1.5;
+    margin-bottom: 18px;
+  }
+  .cta {
+    width: 100%;
+    background: var(--blue);
+    color: var(--ink);
+    border: none;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 13px;
+    cursor: pointer;
+    transition: background .15s ease;
+  }
+  .cta:active { background: var(--blue-strong); color: #fff; }
+
+  /* ---------- End overlay (over the lower half — the creature stays visible) ---------- */
+  .end {
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 26, 26, .94);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 10;
+  }
+  .end.on { display: flex; }
+  .end-card {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    padding: 22px;
+    text-align: center;
+    animation: revealIn .3s ease;
+  }
+  .end-card h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .end-card .sub { font-size: 13px; color: var(--gray-600); margin-bottom: 16px; }
+  .stats { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 9px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+  }
+  .stat .k { color: var(--gray-600); }
+  .stat .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .v.gold { color: var(--yellow-dark); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .streak.pop, .vitality .fill.low, .float-note.go, .unlock-banner.show { animation: none !important; }
+    .card.spring, .card.fling { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+
+  <!-- Header -->
+  <div class="top">
+    <span class="course-chip">Information Security</span>
+    <span class="progress" id="progress">1 / 14</span>
+    <span class="streak" id="streakBox">
+      <svg width="15" height="15" viewBox="0 0 256 256" fill="none">
+        <path d="M136 24s16 24 16 48c0 16-8 24-8 24s24-8 32-32c0 0 24 32 24 72a72 72 0 0 1-144 0c0-48 40-64 48-112 0 0 16 8 32 0Z"
+              stroke="currentColor" stroke-width="12" stroke-linejoin="round"/>
+      </svg>
+      <span id="streakNum">0</span>
+    </span>
+  </div>
+
+  <!-- Creature viewport -->
+  <div class="stage">
+    <div class="viewport" id="viewport">
+      <div class="mount" id="mount"></div>
+      <div class="load-note" id="loadNote">Summoning your buddy…</div>
+      <div class="hud">
+        <div class="hearts" id="hearts"></div>
+        <div class="vitality"><div class="fill" id="vitFill"></div></div>
+      </div>
+      <span class="float-note" id="floatNote">+ ♥</span>
+      <div class="unlock-banner" id="unlockBanner"></div>
+      <span class="form-tag" id="formTag">Hatchling</span>
+    </div>
+  </div>
+
+  <!-- Cards + controls -->
+  <div class="lower">
+    <div class="cardzone">
+      <div class="stack" id="stack">
+        <div class="card back" id="cardBack">
+          <div class="cat" id="backCat"></div>
+          <div class="statement" id="backStatement"></div>
+        </div>
+        <div class="card top" id="cardTop">
+          <span class="drag-label myth" id="dragMyth">MYTH</span>
+          <span class="drag-label fact" id="dragFact">FACT</span>
+          <div class="cat" id="topCat"></div>
+          <div class="statement" id="topStatement"></div>
+        </div>
+        <div class="stamp" id="stamp"></div>
+      </div>
+    </div>
+
+    <div class="reveal" id="reveal">
+      <div class="badge" id="revealBadge"></div>
+      <div>
+        <div class="verdict" id="revealVerdict"></div>
+        <div class="why" id="revealWhy"></div>
+        <div class="tap">Tap to continue</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl myth" id="btnMyth" aria-label="Myth">
+        <span class="btn">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
+            <path d="M60 60 L196 196 M196 60 L60 196" stroke="#FF613F" stroke-width="14" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="lbl">Myth</span>
+      </button>
+      <button class="ctrl fact" id="btnFact" aria-label="Fact">
+        <span class="btn">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
+            <path d="M44 132 L100 188 L212 72" stroke="#4CA7FF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="lbl">Fact</span>
+      </button>
+    </div>
+
+    <!-- Intro: shown once per session, then never again -->
+    <div class="intro on" id="intro">
+      <div class="intro-card">
+        <h2>Myth or Fact?</h2>
+        <div class="intro-row">
+          <div class="intro-pill myth"><span>✕ MYTH</span><span class="dir">swipe left</span></div>
+          <div class="intro-pill fact"><span>✓ FACT</span><span class="dir">swipe right</span></div>
+        </div>
+        <div class="note">Its energy drains on its own — even standing still costs it. Correct answers feed it, wrong ones hurt it.</div>
+        <button class="cta" id="startBtn">Start</button>
+      </div>
+    </div>
+
+    <!-- End overlay -->
+    <div class="end" id="endOverlay">
+      <div class="end-card">
+        <h2 id="endTitle"></h2>
+        <div class="sub" id="endSub"></div>
+        <div class="stats">
+          <div class="stat"><span class="k">Final form</span><span class="v" id="statForm"></span></div>
+          <div class="stat"><span class="k">Correct</span><span class="v" id="statCorrect"></span></div>
+          <div class="stat"><span class="k">Best streak</span><span class="v" id="statStreak"></span></div>
+          <div class="stat"><span class="k">Unlocked</span><span class="v" id="statUnlocks"></span></div>
+        </div>
+        <button class="cta" id="playAgain">Play again</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+  // ---------- Content ----------
+  const DECK_SOURCE = [
+    { fact: true,  cat: 'Access',    text: 'Multi-factor authentication stops the vast majority of automated account attacks.', why: 'Even a stolen password fails without the second factor.' },
+    { fact: false, cat: 'Privacy',   text: 'Incognito mode hides your browsing from the company network.', why: 'It only clears local history — network traffic is still visible.' },
+    { fact: true,  cat: 'Phishing',  text: 'Phishing is the most common starting point for data breaches.', why: 'Most breaches begin with a deceptive email, not advanced hacking.' },
+    { fact: false, cat: 'Devices',   text: 'Macs can’t get malware.', why: 'Every operating system can be infected — attackers follow the users.' },
+    { fact: false, cat: 'Access',    text: 'A strong password means you don’t need two-factor authentication.', why: 'Strong passwords still leak in breaches. A second factor protects you when they do.' },
+    { fact: true,  cat: 'Networks',  text: 'Public Wi‑Fi traffic can be intercepted, even on password-protected networks.', why: 'Anyone on the same network can attempt to snoop on your traffic.' },
+    { fact: false, cat: 'Access',    text: 'Forcing a password change every month makes accounts safer.', why: 'Frequent forced changes push people toward predictable patterns.' },
+    { fact: true,  cat: 'Devices',   text: 'Software updates often patch known security holes.', why: 'Attackers target machines that skipped the fix — update early.' },
+    { fact: false, cat: 'Phishing',  text: 'Attachments from people you know are always safe to open.', why: 'Compromised accounts send malware to their own contacts.' },
+    { fact: true,  cat: 'Workplace', text: 'Locking your screen when you step away is part of good security hygiene.', why: 'An open session is open to anyone walking by.' },
+    { fact: false, cat: 'Threats',   text: 'Small companies aren’t worth attacking.', why: 'Smaller targets often have weaker defenses — attacks run automated, at scale.' },
+    { fact: true,  cat: 'Access',    text: 'A password manager makes unique passwords practical.', why: 'One vault, hundreds of strong logins you never have to memorize.' },
+    { fact: false, cat: 'Devices',   text: 'Antivirus software catches every threat.', why: 'New attacks appear faster than detection updates — layered defenses matter.' },
+    { fact: true,  cat: 'Phishing',  text: 'Reporting a suspicious email helps protect the whole company.', why: 'One report lets security block the sender for everyone.' }
+  ];
+
+  // Streak cosmetics, v3: element crowns played on the 3D star (session-persistent)
+  const UNLOCKS = [
+    { streak: 3, gesture: 'icecrown',      label: 'Ice crown' },
+    { streak: 5, gesture: 'electriccrown', label: 'Storm crown' },
+    { streak: 8, gesture: 'lightcrown',    label: 'Light crown' }
+  ];
+
+  // ---------- Tuning ----------
+  const MAX_HEARTS = 5;
+  const START_HEARTS = 3;
+  const HEAL = 0.5;               // per correct answer
+  const DAMAGE = 1;               // per wrong answer
+  const ADVANCE_CORRECT = 1400;   // ms before auto-advance
+  const ADVANCE_WRONG = 2600;     // linger longer on misses — that's where learning happens
+  const SWIPE_THRESHOLD = 90;     // px
+
+  const STAGE1_DRAIN_MS = 14000;  // full bar → empty, hatchling (gentler ramp)
+  const STAGE2_DRAIN_MS = 9000;   // full bar → empty, adult
+  const WRONG_REFILL = 0.4;       // wrong answers partially refill — engaged, but not nourished
+  const GROW_CORRECT = 4;         // correct answers to reach adult
+  const GOD_STREAK = 7;           // breakthrough: full hearts + this streak
+
+  // 3D creature: growth = camera dolly (further away = smaller buddy)
+  const CAM = { hatch: 1.37, adult: 1.0, god: 0.95 };
+  const AMBIENT_MS = 12000;       // idle flourish loop (god firemeditation / crowns)
+  const MOOD_MS = 1100;           // momentary emotion before returning to resting mood
+  const POSITIVE_GESTURES = ['bounce', 'nod', 'spin'];
+
+  // ---------- State ----------
+  let deck = [], idx = 0, hearts = START_HEARTS;
+  let streak = 0, bestStreak = 0, correctCount = 0;
+  const unlockedThisSession = {};  // persists across rounds within the session
+  let busy = false, over = false, advanceTimer = null;
+  let vitality = 1, stageNum = 1, growthCount = 0, god = false;
+  let started = false;             // false until the intro is dismissed (session start)
+  let posGestureIdx = 0, lowVitWarned = false;
+
+  // ---------- Elements ----------
+  const $ = id => document.getElementById(id);
+  const els = {
+    progress: $('progress'), streakBox: $('streakBox'), streakNum: $('streakNum'),
+    hearts: $('hearts'), vitFill: $('vitFill'),
+    mount: $('mount'), loadNote: $('loadNote'), formTag: $('formTag'),
+    floatNote: $('floatNote'), banner: $('unlockBanner'),
+    cardTop: $('cardTop'), cardBack: $('cardBack'),
+    topCat: $('topCat'), topStatement: $('topStatement'),
+    backCat: $('backCat'), backStatement: $('backStatement'),
+    dragMyth: $('dragMyth'), dragFact: $('dragFact'),
+    stamp: $('stamp'), reveal: $('reveal'),
+    revealBadge: $('revealBadge'), revealVerdict: $('revealVerdict'), revealWhy: $('revealWhy'),
+    btnMyth: $('btnMyth'), btnFact: $('btnFact'),
+    intro: $('intro'), startBtn: $('startBtn'),
+    end: $('endOverlay'), endTitle: $('endTitle'), endSub: $('endSub'),
+    statForm: $('statForm'), statCorrect: $('statCorrect'),
+    statStreak: $('statStreak'), statUnlocks: $('statUnlocks'),
+    playAgain: $('playAgain')
+  };
+
+  // ---------- 3D creature (Emotive Engine, star form) ----------
+  let mascot = null, mascotReady = false, dollyRaf = null;
+
+  (async () => {
+    try {
+      const mod = await import('./emotive-engine-main/site/public/emotive-engine-3d-elementals.bundled.js');
+      const EmotiveMascot3D = mod.default;
+      mascot = new EmotiveMascot3D({
+        coreGeometry: 'star',
+        enableParticles: true,
+        enablePostProcessing: true,
+        enableShadows: false,
+        enableControls: true,
+        enableShatter: false,
+        autoRotate: true,
+        cameraDistance: CAM.hatch,
+        fov: 30,
+        minZoom: 0.6,
+        maxZoom: 2.4,
+        materialVariant: 'multiplexer',
+        assetBasePath: './emotive-engine-main/site/public/assets',
+        preloadElements: [],
+        backgroundPrewarm: true
+      });
+      mascot.init(els.mount);
+      await mascot.start();
+
+      // rotate-only: growth owns the zoom axis
+      const controls = mascot.core3D?.renderer?.controls;
+      if (controls) { controls.enableZoom = false; controls.enablePan = false; }
+
+      mascotReady = true;
+      window.mascot = mascot; // console debugging, same convention as the engine examples
+      els.loadNote.classList.add('off');
+      mascot.growIn(600);
+      applyRestingMood();
+    } catch (err) {
+      console.error('Emotive engine failed to load', err);
+      els.loadNote.textContent = 'Couldn’t wake the creature — serve this folder over HTTP (e.g. python3 -m http.server).';
+    }
+  })();
+
+  function creature(fn) {
+    if (mascotReady) { try { fn(mascot); } catch (err) { console.warn('creature call failed', err); } }
+  }
+  const emote = name => creature(m => m.setEmotion(name));
+  const express = name => creature(m => m.express(name));
+
+  // Growth: dolly the camera along its current direction (plays nice with auto-rotate)
+  function dollyTo(dist, ms) {
+    creature(m => {
+      const r = m.core3D?.renderer;
+      if (!r) return;
+      const cam = r.camera;
+      const tg = r.controls ? r.controls.target : { x: 0, y: 0, z: 0 };
+      cancelAnimationFrame(dollyRaf);
+      const d0 = Math.hypot(cam.position.x - tg.x, cam.position.y - tg.y, cam.position.z - tg.z) || 1;
+      const t0 = performance.now();
+      const step = t => {
+        const p = ms ? Math.min(1, (t - t0) / ms) : 1;
+        const eased = 1 - Math.pow(1 - p, 3);
+        const d = d0 + (dist - d0) * eased;
+        const dx = cam.position.x - tg.x, dy = cam.position.y - tg.y, dz = cam.position.z - tg.z;
+        const len = Math.hypot(dx, dy, dz) || 1;
+        cam.position.set(tg.x + dx / len * d, tg.y + dy / len * d, tg.z + dz / len * d);
+        if (p < 1) dollyRaf = requestAnimationFrame(step);
+      };
+      dollyRaf = requestAnimationFrame(step);
+    });
+  }
+  function growthDistance() {
+    if (stageNum >= 2) return god ? CAM.god : CAM.adult;
+    return CAM.hatch + (CAM.adult - CAM.hatch) * (growthCount / GROW_CORRECT);
+  }
+
+  // Mood: momentary emotions revert to the resting mood after MOOD_MS
+  let moodTimer = null;
+  function restingEmotion() {
+    if (hearts <= 0) return 'sadness';
+    if (hearts <= 1) return 'sadness';
+    if (god) return 'euphoria';
+    if (streak >= 3) return 'excited';
+    if (hearts >= 4) return 'joy';
+    return 'neutral';
+  }
+  function applyRestingMood() { emote(restingEmotion()); }
+  function mood(emotion, ms) {
+    emote(emotion);
+    clearTimeout(moodTimer);
+    moodTimer = setTimeout(applyRestingMood, ms || MOOD_MS);
+  }
+
+  // Idle flourish: god form meditates in fire, otherwise show off the best crown
+  setInterval(() => {
+    if (!started || busy || over || !mascotReady) return;
+    if (god) { express('firemeditation'); return; }
+    const crowns = UNLOCKS.filter(u => unlockedThisSession[u.gesture]);
+    if (crowns.length) express(crowns[crowns.length - 1].gesture);
+  }, AMBIENT_MS);
+
+  // ---------- Hearts ----------
+  const HEART_PATH = 'M128 224 C 128 224 24 164 24 96 A 52 52 0 0 1 128 76 A 52 52 0 0 1 232 96 C 232 164 128 224 128 224 Z';
+  function buildHearts() {
+    els.hearts.innerHTML = '';
+    for (let i = 0; i < MAX_HEARTS; i++) {
+      const d = document.createElement('div');
+      d.className = 'heart';
+      d.innerHTML =
+        '<svg viewBox="0 0 256 256"><path d="' + HEART_PATH + '" fill="rgba(255,255,255,.12)"/></svg>' +
+        '<svg viewBox="0 0 256 256"><path class="fillpart" d="' + HEART_PATH + '" fill="#FF613F"/></svg>' +
+        '<svg viewBox="0 0 256 256"><path d="' + HEART_PATH + '" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="10"/></svg>';
+      els.hearts.appendChild(d);
+    }
+    renderHearts();
+  }
+  function renderHearts() {
+    const nodes = els.hearts.children;
+    for (let i = 0; i < nodes.length; i++) {
+      const fill = Math.max(0, Math.min(1, hearts - i)); // 0, .5, 1
+      nodes[i].querySelector('.fillpart').style.clipPath = 'inset(0 ' + ((1 - fill) * 100) + '% 0 0)';
+    }
+  }
+
+  // ---------- Vitality (constant drain) ----------
+  let lastT = null;
+  function drainLoop(t) {
+    if (lastT == null) lastT = t;
+    const dt = Math.min(100, t - lastT); // cap: tab switches don't dump damage
+    lastT = t;
+    if (started && !busy && !over) {
+      const rate = (stageNum === 1) ? STAGE1_DRAIN_MS : STAGE2_DRAIN_MS;
+      vitality -= dt / rate;
+      if (vitality < 0.2 && !lowVitWarned) {
+        lowVitWarned = true;         // starving: one tremble per bar cycle
+        express('jitter');
+        mood('fear', 1300);
+      }
+      if (vitality <= 0) {
+        vitality = 1;                // bar refills, drain continues
+        lowVitWarned = false;
+        loseHeartToDrain();          // idle time becomes heart damage
+      }
+      renderVitality();
+    }
+    requestAnimationFrame(drainLoop);
+  }
+  function renderVitality() {
+    const f = els.vitFill;
+    f.style.width = (Math.max(0, vitality) * 100) + '%';
+    f.className = 'fill' + (vitality < 0.2 ? ' low' : (vitality < 0.5 ? ' mid' : ''));
+  }
+
+  function loseHeartToDrain() {
+    hearts = Math.max(0, hearts - 1);
+    renderHearts();
+    express('voiddrain');            // neglect reads as the void taking a bite
+    mood('sadness', 1600);
+    showFloat('− ♥', true);
+    if (hearts <= 0 && !over) endRound(true);
+  }
+
+  function showFloat(text, isLoss) {
+    els.floatNote.textContent = text;
+    els.floatNote.classList.toggle('loss', !!isLoss);
+    els.floatNote.classList.remove('go');
+    void els.floatNote.offsetWidth;
+    els.floatNote.classList.add('go');
+  }
+
+  function showBanner(text) {
+    els.banner.textContent = text;
+    els.banner.classList.remove('show');
+    void els.banner.offsetWidth;
+    els.banner.classList.add('show');
+  }
+
+  function renderFormTag() {
+    els.formTag.textContent = god ? 'God tier' : (stageNum === 2 ? 'Adult' : 'Hatchling');
+    els.formTag.classList.toggle('gold', god);
+  }
+
+  // ---------- Round setup ----------
+  function shuffle(src) {
+    const a = src.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function startRound() {
+    deck = shuffle(DECK_SOURCE);
+    idx = 0; hearts = START_HEARTS;
+    streak = 0; bestStreak = 0; correctCount = 0;
+    busy = false; over = false;
+    vitality = 1; stageNum = 1; growthCount = 0; god = false;
+    lowVitWarned = false;
+    clearTimeout(advanceTimer);
+    els.end.classList.remove('on');
+    els.reveal.classList.remove('on');
+    renderHearts();
+    renderVitality();
+    renderStreak(false);
+    renderFormTag();
+    renderCards();
+    creature(m => { m.growIn(500); });
+    dollyTo(CAM.hatch, 600);
+    applyRestingMood();
+  }
+
+  function renderCards() {
+    const cur = deck[idx], next = deck[idx + 1];
+    els.topCat.textContent = cur.cat;
+    els.topStatement.textContent = cur.text;
+    els.cardTop.classList.remove('fling', 'spring');
+    els.cardTop.style.transform = '';
+    els.cardTop.style.opacity = '';
+    els.dragMyth.style.opacity = 0;
+    els.dragFact.style.opacity = 0;
+    if (next) {
+      els.cardBack.style.visibility = '';
+      els.backCat.textContent = next.cat;
+      els.backStatement.textContent = next.text;
+    } else {
+      els.cardBack.style.visibility = 'hidden';
+    }
+    els.progress.textContent = (idx + 1) + ' / ' + deck.length;
+  }
+
+  function renderStreak(pop) {
+    els.streakNum.textContent = streak;
+    els.streakBox.classList.toggle('hot', streak >= 3);
+    if (pop) {
+      els.streakBox.classList.remove('pop');
+      void els.streakBox.offsetWidth;
+      els.streakBox.classList.add('pop');
+    }
+  }
+
+  // ---------- Answering ----------
+  function answer(saysFact) {
+    if (!started || busy || over) return;
+    busy = true; // also pauses the drain while the reveal is up
+
+    const card = deck[idx];
+    const isCorrect = (saysFact === card.fact);
+
+    // fling
+    const dir = saysFact ? 1 : -1;
+    els.cardTop.classList.remove('spring');
+    els.cardTop.classList.add('fling');
+    els.cardTop.style.transform = 'translateX(' + (dir * 440) + 'px) rotate(' + (dir * 22) + 'deg)';
+
+    // truth stamp
+    els.stamp.className = 'stamp ' + (card.fact ? 'fact' : 'myth');
+    els.stamp.textContent = card.fact ? 'FACT' : 'MYTH';
+    void els.stamp.offsetWidth;
+    els.stamp.classList.add('show');
+
+    if (isCorrect) {
+      correctCount++;
+      streak++;
+      bestStreak = Math.max(bestStreak, streak);
+      vitality = 1; // fed — full refill
+      lowVitWarned = false;
+      renderVitality();
+      const before = hearts;
+      hearts = Math.min(MAX_HEARTS, hearts + HEAL);
+      if (hearts > before) showFloat('+ ♥', false);
+      mood('joy');
+      express(POSITIVE_GESTURES[posGestureIdx++ % POSITIVE_GESTURES.length]);
+
+      // stage 1: growth
+      if (stageNum === 1) {
+        growthCount++;
+        dollyTo(growthDistance(), 700);
+        if (growthCount >= GROW_CORRECT) {
+          stageNum = 2;
+          express('expand');
+          renderFormTag();
+          showBanner('All grown up');
+        }
+      }
+      // stage 2: breakthrough
+      if (stageNum === 2 && !god && hearts >= MAX_HEARTS && streak >= GOD_STREAK) {
+        god = true;
+        express('lightascend');
+        mood('euphoria', 2600);
+        dollyTo(CAM.god, 900);
+        renderFormTag();
+        showBanner('God tier reached');
+      }
+      checkUnlocks();
+    } else {
+      streak = 0;
+      vitality = Math.max(vitality, WRONG_REFILL); // engaged, but not nourished
+      renderVitality();
+      hearts = Math.max(0, hearts - DAMAGE);
+      express('recoil');
+      mood('sadness', 1500);
+    }
+    renderHearts();
+    renderStreak(isCorrect);
+
+    // reveal panel
+    els.reveal.className = 'reveal on ' + (isCorrect ? 'good' : 'bad');
+    els.revealBadge.innerHTML = isCorrect
+      ? '<svg width="15" height="15" viewBox="0 0 256 256" fill="none"><path d="M44 132 L100 188 L212 72" stroke="#047FFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 256 256" fill="none"><path d="M56 56 L200 200 M200 56 L56 200" stroke="#FF613F" stroke-width="22" stroke-linecap="round"/></svg>';
+    els.revealVerdict.textContent = isCorrect
+      ? 'Correct — that’s a ' + (card.fact ? 'fact' : 'myth')
+      : 'That’s actually a ' + (card.fact ? 'fact' : 'myth');
+    els.revealWhy.textContent = card.why;
+
+    if (hearts <= 0) {
+      // let the miss + stamp land, then faint
+      clearTimeout(advanceTimer);
+      advanceTimer = setTimeout(() => endRound(true), 1100);
+      return;
+    }
+
+    clearTimeout(advanceTimer);
+    advanceTimer = setTimeout(advance, isCorrect ? ADVANCE_CORRECT : ADVANCE_WRONG);
+  }
+
+  function advance() {
+    clearTimeout(advanceTimer);
+    if (over) return;
+    els.stamp.classList.remove('show');
+    els.reveal.classList.remove('on');
+    idx++;
+
+    if (idx >= deck.length) { endRound(false); return; }
+
+    renderCards();
+    busy = false; // drain resumes
+  }
+
+  function checkUnlocks() {
+    UNLOCKS.forEach(u => {
+      if (streak === u.streak && !unlockedThisSession[u.gesture]) {
+        unlockedThisSession[u.gesture] = true;
+        express(u.gesture);
+        showBanner('Streak ' + u.streak + ' — ' + u.label + ' unlocked');
+      }
+    });
+  }
+
+  // ---------- Round end ----------
+  function endRound(fainted) {
+    if (over) return;
+    over = true;
+    busy = true;
+    clearTimeout(advanceTimer);
+    clearTimeout(moodTimer);
+    if (fainted) {
+      express('knockout');
+      emote('sadness');
+    } else {
+      applyRestingMood();
+    }
+
+    const form = god ? 'God tier' : (stageNum === 2 ? 'Adult' : 'Hatchling');
+    els.endTitle.textContent = fainted ? 'Your buddy fainted' : 'Round complete';
+    els.endSub.textContent = fainted
+      ? 'It’ll be back on its feet next round.'
+      : (god ? 'It broke through.'
+             : (stageNum === 2 ? 'Health held steady.' : 'Still young — it needs more correct answers to grow.'));
+    els.statForm.textContent = form;
+    els.statForm.classList.toggle('gold', god);
+    els.statCorrect.textContent = correctCount + ' / ' + deck.length;
+    els.statStreak.textContent = bestStreak;
+    const names = UNLOCKS.filter(u => unlockedThisSession[u.gesture]).map(u => u.label);
+    els.statUnlocks.textContent = names.length ? names.join(', ') : '—';
+    setTimeout(() => els.end.classList.add('on'), fainted ? 1200 : 500);
+  }
+
+  // ---------- Input: intro + buttons ----------
+  els.startBtn.addEventListener('click', () => {
+    els.intro.classList.remove('on');
+    started = true; // drain begins now — reading the rules is free
+  });
+  els.btnMyth.addEventListener('click', () => answer(false));
+  els.btnFact.addEventListener('click', () => answer(true));
+  els.playAgain.addEventListener('click', startRound);
+
+  // tap to skip the reveal pause
+  function skipReveal() {
+    if (busy && !over && els.reveal.classList.contains('on') && hearts > 0) advance();
+  }
+  els.reveal.addEventListener('click', skipReveal);
+  $('stack').addEventListener('click', skipReveal);
+
+  // ---------- Input: swipe ----------
+  let dragging = false, startX = 0, dx = 0;
+
+  els.cardTop.addEventListener('pointerdown', e => {
+    if (!started || busy || over) return;
+    dragging = true;
+    startX = e.clientX;
+    dx = 0;
+    els.cardTop.classList.remove('spring');
+    els.cardTop.setPointerCapture(e.pointerId);
+  });
+
+  els.cardTop.addEventListener('pointermove', e => {
+    if (!dragging || over) return;
+    dx = e.clientX - startX;
+    els.cardTop.style.transform = 'translateX(' + dx + 'px) rotate(' + (dx * 0.06) + 'deg)';
+    const t = Math.min(1, Math.abs(dx) / SWIPE_THRESHOLD);
+    els.dragMyth.style.opacity = dx < 0 ? t : 0;
+    els.dragFact.style.opacity = dx > 0 ? t : 0;
+  });
+
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    if (over) return;
+    if (Math.abs(dx) >= SWIPE_THRESHOLD) {
+      answer(dx > 0);
+    } else {
+      els.cardTop.classList.add('spring');
+      els.cardTop.style.transform = '';
+      els.dragMyth.style.opacity = 0;
+      els.dragFact.style.opacity = 0;
+    }
+  }
+  els.cardTop.addEventListener('pointerup', endDrag);
+  els.cardTop.addEventListener('pointercancel', endDrag);
+
+  // keyboard (desktop testing)
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') answer(false);
+    if (e.key === 'ArrowRight') answer(true);
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (busy && !over && els.reveal.classList.contains('on')) { e.preventDefault(); skipReveal(); }
+    }
+  });
+
+  // ---------- Go ----------
+  buildHearts();
+  startRound();
+  requestAnimationFrame(drainLoop);
+</script>
+</body>
+</html>
